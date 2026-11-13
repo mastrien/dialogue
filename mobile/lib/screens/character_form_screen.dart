@@ -4,6 +4,7 @@ import '../i18n.dart';
 import '../models.dart';
 import '../rust_bridge.dart';
 import '../widgets/smooth_avatar.dart';
+import 'avatar_crop_screen.dart';
 
 const _bubbleColors = [
   '#6366F1',
@@ -60,8 +61,18 @@ class _CharacterFormScreenState extends State<CharacterFormScreen> {
     try {
       final picker = ImagePicker();
       final xfile = await picker.pickImage(source: ImageSource.gallery);
-      if (xfile == null) return;
-      final saved = await RustBridge.importMediaFile(xfile.path);
+      if (xfile == null || !mounted) return;
+      final croppedPath = await Navigator.push<String>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => AvatarCropScreen(
+            lang: widget.lang,
+            imagePath: xfile.path,
+          ),
+        ),
+      );
+      if (croppedPath == null) return;
+      final saved = await RustBridge.importMediaFile(croppedPath);
       if (!mounted) return;
       setState(() {
         _avatarPath = saved;

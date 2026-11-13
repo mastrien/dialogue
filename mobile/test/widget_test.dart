@@ -9,6 +9,7 @@ import 'package:dialogue_mobile/screens/chat_screen.dart';
 import 'package:dialogue_mobile/screens/group_form_screen.dart';
 import 'package:dialogue_mobile/screens/home_screen.dart';
 import 'package:dialogue_mobile/screens/settings_screen.dart';
+import 'package:dialogue_mobile/updater.dart';
 
 void main() {
   late Directory tempDir;
@@ -275,6 +276,18 @@ void main() {
     );
     expect(find.text('Short 1'), findsOneWidget);
     expect(find.text('Short 2'), findsOneWidget);
+
+    // Swipe right on "Short 1" to mark as reply
+    await tester.drag(find.text('Short 1'), const Offset(80, 0));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Replying to:'), findsOneWidget);
+  });
+
+  test('isNewerVersion compares semver correctly', () {
+    expect(isNewerVersion('0.1.3', '0.1.2'), isTrue);
+    expect(isNewerVersion('0.2.0', '0.1.9'), isTrue);
+    expect(isNewerVersion('0.1.2', '0.1.2'), isFalse);
+    expect(isNewerVersion('0.1.1', '0.1.2'), isFalse);
   });
 
   testWidgets('GroupFormScreen & SettingsScreen render and update settings',

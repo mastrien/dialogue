@@ -54,6 +54,9 @@ const Map<String, Map<String, String>> _strings = {
     'downloading': 'Downloading...',
     'installing': 'Installing...',
     'updateFailed': 'Update failed:',
+    'adjustPhoto': 'Adjust Photo',
+    'zoom': 'Zoom',
+    'confirm': 'Confirm',
   },
   'pt': {
     'appTitle': 'Dialogue',
@@ -110,6 +113,9 @@ const Map<String, Map<String, String>> _strings = {
     'downloading': 'Baixando...',
     'installing': 'Instalando...',
     'updateFailed': 'Falha ao atualizar:',
+    'adjustPhoto': 'Ajustar Foto',
+    'zoom': 'Zoom',
+    'confirm': 'Confirmar',
   },
 };
 

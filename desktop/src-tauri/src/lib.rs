@@ -95,6 +95,20 @@ fn import_media_file(state: State<AppState>, source_path: String) -> Result<Stri
 }
 
 #[tauri::command]
+fn save_media_bytes(state: State<AppState>, bytes: Vec<u8>, ext: String) -> Result<String, String> {
+    let clean_ext = ext
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric())
+        .collect::<String>()
+        .to_lowercase();
+    let final_ext = if clean_ext.is_empty() { "png" } else { &clean_ext };
+    let filename = format!("{}.{}", Uuid::new_v4(), final_ext);
+    let dest = state.db.media_dir().join(&filename);
+    std::fs::write(dest, bytes).map_err(map_err)?;
+    Ok(filename)
+}
+
+#[tauri::command]
 fn list_characters(state: State<AppState>) -> Result<Vec<Character>, String> {
     state.db.list_characters().map_err(map_err)
 }
@@ -328,6 +342,7 @@ pub fn run() {
             update_settings,
             get_media_dir,
             import_media_file,
+            save_media_bytes,
             list_characters,
             create_character,
             update_character,

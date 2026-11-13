@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../i18n.dart';
 import '../models.dart';
 import '../rust_bridge.dart';
@@ -309,9 +310,14 @@ class _ChatScreenState extends State<ChatScreen> {
                   padding: EdgeInsets.only(
                     top: isFirstInGroup ? (idx == 0 ? 0 : 12) : 3,
                   ),
-                  child: Align(
-                    alignment:
-                        isUser ? Alignment.centerRight : Alignment.centerLeft,
+                  child: _SwipeToReply(
+                    onReply: () => setState(() {
+                      _editingMsg = null;
+                      _replyTo = msg;
+                    }),
+                    child: Align(
+                      alignment:
+                          isUser ? Alignment.centerRight : Alignment.centerLeft,
                     child: GestureDetector(
                       onLongPress: () => _showMessageActions(msg),
                       child: Container(
@@ -467,6 +473,7 @@ class _ChatScreenState extends State<ChatScreen> {
                       ),
                     ),
                   ),
+                ),
                 );
               },
             ),
@@ -582,6 +589,113 @@ class _ChatScreenState extends State<ChatScreen> {
                 ],
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SwipeToReply extends StatefulWidget {
+  final VoidCallback onReply;
+  final Widget child;
+
+  const _SwipeToReply({required this.onReply, required this.child});
+
+  @override
+  State<_SwipeToReply> createState() => _SwipeToReplyState();
+}
+
+class _SwipeToReplyState extends State<_SwipeToReply>
+    with SingleTickerProviderStateMixin {
+  static const double _triggerThreshold = 42.0;
+  static const double _maxOffset = 64.0;
+
+  double _dragOffset = 0.0;
+  bool _triggeredHaptic = false;
+  late final AnimationController _resetController;
+  Animation<double>? _resetAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _resetController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 180),
+    )..addListener(() {
+        if (_resetAnim != null) {
+          setState(() => _dragOffset = _resetAnim!.value);
+        }
+      });
+  }
+
+  @override
+  void dispose() {
+    _resetController.dispose();
+    super.dispose();
+  }
+
+  void _snapBack() {
+    final shouldReply = _dragOffset >= _triggerThreshold;
+    _resetAnim = Tween<double>(begin: _dragOffset, end: 0.0).animate(
+      CurvedAnimation(parent: _resetController, curve: Curves.easeOutCubic),
+    );
+    _resetController.forward(from: 0.0);
+    _triggeredHaptic = false;
+    if (shouldReply) {
+      widget.onReply();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final progress = (_dragOffset / _triggerThreshold).clamp(0.0, 1.0);
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onHorizontalDragUpdate: (details) {
+        if (details.delta.dx > 0 || _dragOffset > 0) {
+          _resetController.stop();
+          final next = (_dragOffset + details.delta.dx).clamp(0.0, _maxOffset);
+          if (next >= _triggerThreshold && !_triggeredHaptic) {
+            _triggeredHaptic = true;
+            HapticFeedback.lightImpact();
+          }
+          setState(() => _dragOffset = next);
+        }
+      },
+      onHorizontalDragEnd: (_) => _snapBack(),
+      onHorizontalDragCancel: _snapBack,
+      child: Stack(
+        alignment: Alignment.centerLeft,
+        children: [
+          if (_dragOffset > 2)
+            Opacity(
+              opacity: progress,
+              child: Transform.scale(
+                scale: 0.6 + 0.4 * progress,
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 8),
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context)
+                          .colorScheme
+                          .primary
+                          .withValues(alpha: 0.16),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.reply,
+                      size: 18,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          Transform.translate(
+            offset: Offset(_dragOffset, 0),
+            child: widget.child,
           ),
         ],
       ),

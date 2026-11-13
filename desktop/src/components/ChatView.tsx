@@ -190,6 +190,16 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.92 }}
                 transition={springTransition}
+                drag="x"
+                dragConstraints={{ left: 0, right: 64 }}
+                dragElastic={{ left: 0, right: 0.15 }}
+                dragSnapToOrigin
+                onDragEnd={(_, info) => {
+                  if (info.offset.x >= 42) {
+                    setEditingMsg(null);
+                    setReplyTo(msg);
+                  }
+                }}
                 className={cn(
                   "group flex flex-col max-w-[74%]",
                   isFirstInGroup ? (index === 0 ? "" : "mt-3.5") : "mt-1",

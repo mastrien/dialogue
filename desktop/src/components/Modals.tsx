@@ -13,6 +13,7 @@ import type {
 import { api } from "@/api";
 import { t, type Language } from "@/i18n";
 import { SmoothAvatar, SmoothButton, SmoothModal } from "./smoothui/Primitives";
+import { AvatarCropModal } from "./AvatarCropModal";
 
 const BUBBLE_COLORS = [
   "#6366F1",
@@ -45,6 +46,7 @@ export const CharacterModal: React.FC<CharacterModalProps> = ({
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [avatarPath, setAvatarPath] = useState<string | null>(null);
+  const [cropSource, setCropSource] = useState<string | null>(null);
   const [bubbleColor, setBubbleColor] = useState(BUBBLE_COLORS[0]);
 
   useEffect(() => {
@@ -67,8 +69,7 @@ export const CharacterModal: React.FC<CharacterModalProps> = ({
       filters: [{ name: "Images", extensions: ["png", "jpg", "jpeg", "webp"] }],
     });
     if (typeof file === "string") {
-      const savedName = await api.importMediaFile(file);
-      setAvatarPath(savedName);
+      setCropSource(file);
     }
   };
 
@@ -197,6 +198,13 @@ export const CharacterModal: React.FC<CharacterModalProps> = ({
           </div>
         </div>
       </form>
+      <AvatarCropModal
+        open={cropSource !== null}
+        lang={lang}
+        sourcePath={cropSource}
+        onClose={() => setCropSource(null)}
+        onCropped={(saved) => setAvatarPath(saved)}
+      />
     </SmoothModal>
   );
 };
@@ -223,6 +231,7 @@ export const GroupModal: React.FC<GroupModalProps> = ({
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [avatarPath, setAvatarPath] = useState<string | null>(null);
+  const [cropSource, setCropSource] = useState<string | null>(null);
   const [memberIds, setMemberIds] = useState<string[]>([]);
 
   useEffect(() => {
@@ -251,8 +260,7 @@ export const GroupModal: React.FC<GroupModalProps> = ({
       filters: [{ name: "Images", extensions: ["png", "jpg", "jpeg", "webp"] }],
     });
     if (typeof file === "string") {
-      const savedName = await api.importMediaFile(file);
-      setAvatarPath(savedName);
+      setCropSource(file);
     }
   };
 
@@ -393,6 +401,13 @@ export const GroupModal: React.FC<GroupModalProps> = ({
           </div>
         </div>
       </form>
+      <AvatarCropModal
+        open={cropSource !== null}
+        lang={lang}
+        sourcePath={cropSource}
+        onClose={() => setCropSource(null)}
+        onCropped={(saved) => setAvatarPath(saved)}
+      />
     </SmoothModal>
   );
 };

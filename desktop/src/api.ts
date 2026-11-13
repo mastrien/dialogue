@@ -98,4 +98,6 @@ export const api = {
   importBackup: (srcPath: string) => invoke<SyncReport>("import_backup", { srcPath }),
   checkForUpdate: () => invoke<UpdateInfo | null>("check_for_update"),
   openExternalUrl: (url: string) => invoke<void>("open_external_url", { url }),
+  saveMediaBytes: (bytes: number[], ext = "png") =>
+    invoke<string>("save_media_bytes", { bytes, ext }),
 };
