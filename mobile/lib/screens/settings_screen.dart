@@ -280,6 +280,24 @@ class _QrScannerPageState extends State<_QrScannerPage> {
     return Scaffold(
       appBar: AppBar(title: const Text('Scan QR')),
       body: MobileScanner(
+        errorBuilder: (context, error) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.videocam_off, size: 48),
+                  const SizedBox(height: 12),
+                  Text(
+                    '${error.errorCode.name}: ${error.errorDetails?.message ?? ''}',
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
         onDetect: (capture) {
           if (_popped) return;
           final raw = capture.barcodes.firstOrNull?.rawValue;
