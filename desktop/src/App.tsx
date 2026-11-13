@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
+import { check, type Update } from "@tauri-apps/plugin-updater";
+import { relaunch } from "@tauri-apps/plugin-process";
 import { Download, MessageSquare } from "lucide-react";
 import type {
   AppSettings,
   Character,
   ConversationSummary,
   Message,
-  UpdateInfo,
 } from "./types";
 import { api, initMediaDir } from "./api";
 import { t } from "./i18n";
@@ -32,7 +33,8 @@ export function App() {
   const [groupModalOpen, setGroupModalOpen] = useState(false);
   const [editingGroup, setEditingGroup] = useState<ConversationSummary | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
+  const [update, setUpdate] = useState<Update | null>(null);
+  const [updateProgress, setUpdateProgress] = useState<string | null>(null);
 
   const refreshAll = async () => {
     const [chars, convs] = await Promise.all([
@@ -55,16 +57,23 @@ export function App() {
       const s = await api.getSettings();
       setSettings(s);
       await refreshAll();
-      api.checkForUpdate().then((info) => {
-        if (info) setUpdateInfo(info);
+      check().then((u) => {
+        if (u) setUpdate(u);
       }).catch(() => {});
     })();
+
+    const updateTimer = setInterval(() => {
+      check().then((u) => {
+        if (u) setUpdate(u);
+      }).catch(() => {});
+    }, 6 * 60 * 60 * 1000);
 
     const unlistenPromise = listen("dialogue:synced", () => {
       refreshAll();
     });
 
     return () => {
+      clearInterval(updateTimer);
       unlistenPromise.then((unlisten) => unlisten());
     };
   }, []);
@@ -179,33 +188,68 @@ export function App() {
       />
 
       <SmoothModal
-        open={updateInfo !== null}
-        onClose={() => setUpdateInfo(null)}
+        open={update !== null}
+        onClose={() => {
+          if (!updateProgress) setUpdate(null);
+        }}
         title={t(settings.language, "updateAvailable")}
       >
-        {updateInfo && (
+        {update && (
           <div className="space-y-4">
             <p className="text-sm text-zinc-600 dark:text-zinc-300">
               {t(settings.language, "updateDescription")}{" "}
               <span className="font-semibold text-indigo-500">
-                v{updateInfo.latest_version}
+                v{update.version}
               </span>{" "}
-              (v{updateInfo.current_version})
+              (v{update.currentVersion})
             </p>
-            {updateInfo.release_notes && (
+            {update.body && (
               <div className="max-h-40 overflow-y-auto rounded-xl bg-zinc-100 dark:bg-zinc-800/70 p-3 text-xs text-zinc-600 dark:text-zinc-300 whitespace-pre-wrap">
-                {updateInfo.release_notes}
+                {update.body}
               </div>
             )}
+            {updateProgress && (
+              <p className="text-xs font-medium text-indigo-500 dark:text-indigo-400">
+                {updateProgress}
+              </p>
+            )}
             <div className="flex justify-end gap-2 pt-1">
-              <SmoothButton variant="ghost" onClick={() => setUpdateInfo(null)}>
+              <SmoothButton
+                variant="ghost"
+                disabled={updateProgress !== null && !updateProgress.startsWith(t(settings.language, "updateFailed"))}
+                onClick={() => {
+                  setUpdateProgress(null);
+                  setUpdate(null);
+                }}
+              >
                 {t(settings.language, "later")}
               </SmoothButton>
               <SmoothButton
+                disabled={updateProgress !== null && !updateProgress.startsWith(t(settings.language, "updateFailed"))}
                 onClick={async () => {
-                  const target = updateInfo.download_url ?? updateInfo.release_url;
-                  await api.openExternalUrl(target);
-                  setUpdateInfo(null);
+                  let total = 0;
+                  let received = 0;
+                  setUpdateProgress(t(settings.language, "downloading"));
+                  try {
+                    await update.downloadAndInstall((event) => {
+                      if (event.event === "Started") {
+                        total = event.data.contentLength ?? 0;
+                      } else if (event.event === "Progress") {
+                        received += event.data.chunkLength;
+                        if (total > 0) {
+                          const pct = Math.min(100, Math.round((received / total) * 100));
+                          setUpdateProgress(`${t(settings.language, "downloading")} ${pct}%`);
+                        }
+                      } else if (event.event === "Finished") {
+                        setUpdateProgress(t(settings.language, "installing"));
+                      }
+                    });
+                    await relaunch();
+                  } catch (e) {
+                    setUpdateProgress(
+                      `${t(settings.language, "updateFailed")} ${e instanceof Error ? e.message : String(e)}`
+                    );
+                  }
                 }}
               >
                 <Download className="w-4 h-4" />

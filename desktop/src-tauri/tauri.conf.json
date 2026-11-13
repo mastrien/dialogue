@@ -29,9 +29,26 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": ["nsis"],
     "icon": [
       "icons/icon.ico"
-    ]
+    ],
+    "createUpdaterArtifacts": true,
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser"
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDhGMjE1NDFBQUZCNEVCREEKUldUYTY3U3ZHbFFoang5NzN3ZFp1TStoaEEzSVBxUWwxdm9KMTBFZS95Um8zOVpEeDZLOFBDejEK",
+      "endpoints": [
+        "https://github.com/mastrien/dialogue/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   }
 }

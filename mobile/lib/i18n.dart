@@ -51,6 +51,9 @@ const Map<String, Map<String, String>> _strings = {
     'updateDescription': 'A new version of Dialogue is available:',
     'updateNow': 'Update',
     'later': 'Later',
+    'downloading': 'Downloading...',
+    'installing': 'Installing...',
+    'updateFailed': 'Update failed:',
   },
   'pt': {
     'appTitle': 'Dialogue',
@@ -104,6 +107,9 @@ const Map<String, Map<String, String>> _strings = {
     'updateDescription': 'Uma nova versão do Dialogue está disponível:',
     'updateNow': 'Atualizar',
     'later': 'Agora não',
+    'downloading': 'Baixando...',
+    'installing': 'Instalando...',
+    'updateFailed': 'Falha ao atualizar:',
   },
 };
 

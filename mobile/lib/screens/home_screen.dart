@@ -1,9 +1,10 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:ota_update/ota_update.dart';
 import '../i18n.dart';
 import '../models.dart';
 import '../rust_bridge.dart';
+import '../updater.dart';
 import '../widgets/smooth_avatar.dart';
 import 'character_form_screen.dart';
 import 'chat_screen.dart';
@@ -42,46 +43,13 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _checkUpdate() async {
     try {
-      final info = await RustBridge.checkForUpdate();
-      if (info == null || !mounted) return;
+      final update = await AppUpdate.check();
+      if (update == null || !mounted) return;
       final lang = widget.settings.language;
       showDialog(
         context: context,
-        builder: (ctx) => AlertDialog(
-          title: Text(tr(lang, 'updateAvailable')),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '${tr(lang, 'updateDescription')} v${info.latestVersion} (v${info.currentVersion})',
-                ),
-                if (info.releaseNotes.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  Text(
-                    info.releaseNotes,
-                    style: const TextStyle(fontSize: 12, color: Colors.grey),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: Text(tr(lang, 'later')),
-            ),
-            FilledButton(
-              onPressed: () async {
-                Navigator.pop(ctx);
-                final uri = Uri.parse(info.downloadUrl ?? info.releaseUrl);
-                await launchUrl(uri, mode: LaunchMode.externalApplication);
-              },
-              child: Text(tr(lang, 'updateNow')),
-            ),
-          ],
-        ),
+        barrierDismissible: false,
+        builder: (ctx) => _UpdateDialog(lang: lang, update: update),
       );
     } catch (_) {
       // Ignore network errors on offline startup
@@ -287,6 +255,124 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _UpdateDialog extends StatefulWidget {
+  final String lang;
+  final AppUpdate update;
+
+  const _UpdateDialog({required this.lang, required this.update});
+
+  @override
+  State<_UpdateDialog> createState() => _UpdateDialogState();
+}
+
+class _UpdateDialogState extends State<_UpdateDialog> {
+  StreamSubscription<OtaEvent>? _sub;
+  bool _downloading = false;
+  String? _status;
+
+  @override
+  void dispose() {
+    _sub?.cancel();
+    super.dispose();
+  }
+
+  void _startInstall() {
+    setState(() {
+      _downloading = true;
+      _status = tr(widget.lang, 'downloading');
+    });
+    _sub = widget.update.install().listen(
+      (event) {
+        if (!mounted) return;
+        switch (event.status) {
+          case OtaStatus.DOWNLOADING:
+            setState(() {
+              _status = '${tr(widget.lang, 'downloading')} ${event.value ?? ''}%';
+            });
+            break;
+          case OtaStatus.INSTALLING:
+            setState(() {
+              _status = tr(widget.lang, 'installing');
+            });
+            break;
+          case OtaStatus.INSTALLATION_DONE:
+            setState(() {
+              _downloading = false;
+            });
+            break;
+          case OtaStatus.ALREADY_RUNNING_ERROR:
+          case OtaStatus.PERMISSION_NOT_GRANTED_ERROR:
+          case OtaStatus.INTERNAL_ERROR:
+          case OtaStatus.DOWNLOAD_ERROR:
+          case OtaStatus.CHECKSUM_ERROR:
+          case OtaStatus.INSTALLATION_ERROR:
+          case OtaStatus.CANCELED:
+            setState(() {
+              _downloading = false;
+              _status =
+                  '${tr(widget.lang, 'updateFailed')} ${event.status.name} ${event.value ?? ''}'.trim();
+            });
+            break;
+        }
+      },
+      onError: (e) {
+        if (!mounted) return;
+        setState(() {
+          _downloading = false;
+          _status = '${tr(widget.lang, 'updateFailed')} $e';
+        });
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final u = widget.update;
+    return AlertDialog(
+      title: Text(tr(widget.lang, 'updateAvailable')),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '${tr(widget.lang, 'updateDescription')} v${u.version} (v${u.currentVersion})',
+            ),
+            if (u.releaseNotes.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Text(
+                u.releaseNotes,
+                style: const TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+            ],
+            if (_status != null) ...[
+              const SizedBox(height: 12),
+              Text(
+                _status!,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Theme.of(context).colorScheme.primary,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _downloading ? null : () => Navigator.pop(context),
+          child: Text(tr(widget.lang, 'later')),
+        ),
+        FilledButton(
+          onPressed: _downloading ? null : _startInstall,
+          child: Text(tr(widget.lang, 'updateNow')),
+        ),
+      ],
     );
   }
 }

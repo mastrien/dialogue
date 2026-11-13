@@ -10,7 +10,16 @@ permissions:
   contents: write
 
 jobs:
+  version:
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 scripts/version.py --check "${{ github.ref_name }}"
+
   build-desktop-windows:
+    needs: [version]
+    if: always() && (needs.version.result == 'success' || needs.version.result == 'skipped')
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -24,17 +33,24 @@ jobs:
           cache: pnpm
           cache-dependency-path: desktop/pnpm-lock.yaml
       - working-directory: desktop
-        run: |
-          pnpm install --frozen-lockfile || pnpm install
-          pnpm tauri build
-      - uses: actions/upload-artifact@v4
+        run: pnpm install --frozen-lockfile || pnpm install
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          name: desktop-windows
-          path: |
-            target/release/bundle/msi/*.msi
-            target/release/bundle/nsis/*-setup.exe
+          projectPath: desktop
+          tagName: ${{ github.ref_name }}
+          releaseName: Dialogue ${{ github.ref_name }}
+          releaseBody: |
+            - **Windows:** instale o `Dialogue_*_x64-setup.exe`. As próximas versões chegam pelo próprio app.
+            - **Android:** instale o `Dialogue-*-android.apk` (permita instalar apps desta fonte). As próximas versões chegam pelo próprio app.
+          releaseDraft: true
+          includeUpdaterJson: true
 
   build-mobile-android:
+    needs: [build-desktop-windows]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -60,29 +76,39 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
+      - name: Configure Android release signing
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > mobile/android/app/dialogue-release.jks
+            cat > mobile/android/key.properties <<EOF
+          storeFile=dialogue-release.jks
+          storePassword=$KEYSTORE_PASSWORD
+          keyAlias=$KEY_ALIAS
+          keyPassword=$KEYSTORE_PASSWORD
+          EOF
+          fi
       - working-directory: mobile
         run: |
           flutter pub get
           flutter build apk --release
-      - name: Rename APK
+      - name: Upload APK to draft release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VERSION=${GITHUB_REF_NAME:-dev}
           cp mobile/build/app/outputs/flutter-apk/app-release.apk "Dialogue-${VERSION}-android.apk"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: mobile-android
-          path: Dialogue-*-android.apk
+          gh release upload "$GITHUB_REF_NAME" "Dialogue-${VERSION}-android.apk" --clobber
 
   publish-release:
     needs: [build-desktop-windows, build-mobile-android]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-          merge-multiple: true
-      - uses: softprops/action-gh-release@v2
-        with:
-          generate_release_notes: true
-          files: artifacts/**/*
+      - name: Publish draft release as latest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false --latest
